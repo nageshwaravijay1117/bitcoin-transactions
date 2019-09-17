@@ -1,69 +1,141 @@
+import json
 from confluent_kafka import Consumer, KafkaError
 from websocket import create_connection
 from datetime import datetime
 import redis
-import json
+
+class MyClass:
+    def __init__(self):
+        print('Hi')
+    
+    curr_time = ''
+    prev_time = '00:00'
+    count =0
+    r = redis.StrictRedis(host="localhost", port=6379, charset="utf-8", decode_responses=True)
+    # from confluent_kafka import Producer
+    # if you encounter a "year is out of range" error the timestamp# may be in milliseconds, try `ts /= 1000` in that caseprint(datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S'))
 
 
+    def start_streaming():
+        settings = {
+                'bootstrap.servers': 'localhost:9092',
+                'group.id': 'mygroup',
+                'client.id': 'client-1',
+                'enable.auto.commit': True,
+                'session.timeout.ms': 6000,
+                'default.topic.config': {'auto.offset.reset': 'smallest'}}
+        c = Consumer(settings)
+        
+        c.subscribe(['mytopic'])
+        try:
+            while True:
+                msg = c.poll(0.1)
+                if msg is None:
+                    continue
+                elif not msg.error():
+                    # print('Received message: {0}'.format(msg.value()))
+                    MyClass.calculate_transaction_per_minute(json.loads(msg.value()))
+                    MyClass.save_out_addr_value(json.loads(msg.value()))
+                    MyClass.save_each_value(json.loads(msg.value()))
+                elif msg.error().code() == KafkaError._PARTITION_EOF:
+                    print('End of partition reached {0}/{1}'.format(msg.topic(), msg.partition()))
+                else:
+                    print('Error occured: {0}'.format(msg.error().str()))
+        except Exception as e:
+            pass
+        finally:
+            c.close()  
+        
 
-settings = {
-    'bootstrap.servers': 'localhost:9092',
-    'group.id': 'mygroup',
-    'client.id': 'client-1',
-    'enable.auto.commit': True,
-    'session.timeout.ms': 6000,
-    'default.topic.config': {'auto.offset.reset': 'smallest'}
-}
 
-r = redis.StrictRedis(host="localhost", port=6379, charset="utf-8", decode_responses=True)
+    def calculate_transaction_per_minute(data_decoded):
+        try:
+            print('index1')
 
-c = Consumer(settings)
-
-c.subscribe(['mytopic'])
-currTime = ''
-prev_time = '00:00'
-count =0
-dataList =[]
-try:
-    while True:
-        msg = c.poll(0.1)
-        if msg is None:
-            continue
-        elif not msg.error():
-            print('Received message: {0}'.format(msg.value()))
-            data_decoded=json.loads(msg.value())
-            hash=data_decoded['x'] 
-            tmpDate=data_decoded['x']['time'] 
-            timeOfTran=datetime.utcfromtimestamp(int(tmpDate)).strftime('%Y-%m-%d %H:%M:%S') 
-            timeSplited= timeOfTran.split() 
-            print('\n ',timeSplited[6:]) 
-            count+=1 
-            currTime = timeSplited[1][:5] 
-            if timeSplited[1][6:] == '00' or timeSplited[1][6:] == '01':
-                print('asd') 
-                if prev_time != currTime:
-                    prev_time = currTime
-                    if r.get(str(currTime)) is not None:
-                        tmp_count = r.get(str(currTime))
-                        r.set(str(currTime),count+tmp_count)
-                        r.expire(str(currTime),10800)
-                        
+            tmp_date=data_decoded['x']['time'] 
+            time_of_tran=datetime.utcfromtimestamp(int(tmp_date)).strftime('%Y-%m-%d %H:%M:%S') 
+            time_splited= time_of_tran.split() 
+            
+            MyClass.count+=1 
+            MyClass.curr_time = time_splited[1][:5] 
+            if time_splited[1][6:] == '00' or time_splited[1][6:] == '01':
+                
+                if MyClass.prev_time != MyClass.curr_time:
+                    MyClass.prev_time = MyClass.curr_time
+                    if MyClass.r.get(str(MyClass.curr_time)) is not None:
+                        tmp_count = MyClass.r.get(str(MyClass.curr_time))
+                        MyClass.r.set(str(MyClass.curr_time),MyClass.count+tmp_count)
+                        MyClass.r.expire(str(MyClass.curr_time),10800)
+                            
                     else:
-                        r.set(str(currTime),count)
-                        r.expire(str(currTime),10800)
-                    dataList.append({currTime:count}) 
-                    currTime = timeSplited[1][:5] 
-                    count =0 
-                addr=data_decoded['x']['out'][0]['addr'] 
-            print(dataList) 
-        elif msg.error().code() == KafkaError._PARTITION_EOF:
-            print('End of partition reached {0}/{1}'
-                  .format(msg.topic(), msg.partition()))
-        else:
-            print('Error occured: {0}'.format(msg.error().str()))
+                        MyClass.r.set(str(MyClass.curr_time),MyClass.count)
+                        MyClass.r.expire(str(MyClass.curr_time),10800)
+                    MyClass.curr_time = time_splited[1][:5] 
+                    MyClass.count =0 
+                # addr=data_decoded['x']['out'][0]['addr'] 
+            
+        except Exception as e:
+            print(str(e))
 
-except KeyboardInterrupt:
-    pass
 
-finally:
-    c.close()
+
+    def save_out_addr_value(data_decoded):
+        print('index2')
+        try:   
+            output_list=data_decoded['x']['out']
+            for output in output_list:
+                if output['addr'] is not None:
+
+                    if len(MyClass.r.smembers(output['addr']))!=0:
+                        MyClass.r.sadd('address',output['addr'])
+                        addr_array=MyClass.r.smembers(output['addr'])
+                        index=max(set(map(int, addr_array)))+1
+                        
+                        MyClass.r.sadd(output['addr'],int(index))
+                        key=output['addr']+':'+str(index)
+                        MyClass.r.set(key,output['value'])
+                        MyClass.r.expire(str(key),10800)
+                    else:
+                        MyClass.r.sadd(output['addr'],int(1))
+                        key=output['addr']+':'+str(1)
+                        MyClass.r.expire(str(key),10800)
+        except Exception as e:
+            print(str(e))
+
+
+    
+    def save_each_value(data_decoded):
+        try:
+            
+            output=data_decoded['x']
+            output['updated_at']=str(datetime.now())
+            print(output)
+            if len(MyClass.r.smembers('transaction'))!=0:
+                tran_array=MyClass.r.smembers('transaction')
+                index=int(MyClass.r.get('transaction_index'))+1
+                print('index3')
+                if(index > 1800000):
+                    index=1
+                MyClass.r.set('transaction_index',index)
+                MyClass.r.sadd('transaction',index)
+                key='transaction'+str(index)
+                MyClass.r.set(key,str(output))
+                MyClass.r.expire(str(key),10800)
+            else:
+
+                MyClass.r.sadd('transaction',1)
+                key='transaction'+str(1)
+                MyClass.r.set('transaction_index',1)
+                MyClass.r.set(key,str(output))
+                MyClass.r.expire(str(key),10800)
+        except Exception as e:
+            print(str(e))
+
+                
+
+            
+            
+    
+        
+
+MyClass.start_streaming()

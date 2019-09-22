@@ -1,6 +1,13 @@
+"""
+==========================================
+Author:Nageshwara Vijay
+Created-At:15-09-2019
+Last-Modified:17-09-2019
+==========================================
+"""
 import os
 
-env = os.getenv('EKRYP_ENV', 'uat')
+env = os.getenv('BITCOIN_ENV', 'uat')
 
 if env == 'prod':
 	REDIS_HOST = "localhost"

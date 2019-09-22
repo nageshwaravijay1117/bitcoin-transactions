@@ -1,6 +1,8 @@
 # Bitcoin Data Streaming
 
-This application reads the realtime data from the https://www.blockchain.com/api/api_websocket and stream the data to the local API server using Kafkha.The Server captures the data from the Kafkha and store it Redis Data Base.
+
+This application reads the realtime data from the https://www.blockchain.com/api/api_websocket and stream the data to the local API server using Kafkha.The Server captures the data from the Kafkha and store it Redis DataStore.
+
 
 ### Prerequisites
 
@@ -11,7 +13,8 @@ Redis 3.3.8
 
 ## Getting Started
 
-*) Colne the project into your local workspace.
+*) Clone the project into your local workspace.
+
 
 *) Install Redis in your local Server and start at port no :6379.
 
@@ -36,7 +39,8 @@ Redis 3.3.8
 
     $ python bitcoin_producer.py
 
-*) Run the bitcoin_consumer.py to recieve data and store it in redis database.
+*) Run the bitcoin_consumer.py to recieve data and store it in redis DataStore.
+
 
     $ python bitcoin_producer.py
 

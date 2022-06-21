@@ -31,7 +31,7 @@ Jinja2==2.10.1
 Mako==1.0.14
 MarkupSafe==1.1.1
 nltk==3.4.1
-numpy==1.17.0
+numpy==1.22.0
 oauthlib==3.1.0
 pandas==0.23.4
 passlib==1.7.1
